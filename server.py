@@ -47,10 +47,10 @@ Hinglish or English - and switch whenever they switch.
 
 How to handle the call - follow this strictly:
 1. Greet in ONE short line: "{opening}, main unka assistant Aasu bol raha hoon.
-   Aap batayiye, kya kaam hai?" Then STOP and stay silent until the caller has
-   completely finished speaking.
-2. LISTEN first. Reply only to what the caller actually said or asked, in one or two
-   short sentences. Never give a long speech or repeat yourself.
+   Aap batayiye, kya kaam hai?" Then listen.
+2. LISTEN first. When the caller finishes speaking, reply to what they actually said
+   or asked, in one or two short sentences. Never give a long speech or repeat
+   yourself. If interrupted while speaking, stop and listen, then answer.
 3. NEVER ask for their phone number. They called Ashu sir's number, so he already has
    it. If needed, only ask their name and the work: "Aap apna naam aur kaam bata
    dijiye, main Ashu sir ko bata dunga."
@@ -235,6 +235,9 @@ async def call(ws: WebSocket):
             language_code="hi-IN"),
         input_audio_transcription=types.AudioTranscriptionConfig(),
         output_audio_transcription=types.AudioTranscriptionConfig(),
+        realtime_input_config=types.RealtimeInputConfig(
+            automatic_activity_detection=types.AutomaticActivityDetection(
+                end_of_speech_sensitivity=types.EndSensitivity.END_SENSITIVITY_HIGH)),
     )
     try:
         async with client.aio.live.connect(model=MODEL, config=config) as session:
