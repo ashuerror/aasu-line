@@ -13,7 +13,7 @@ Env:
   MAX_CALL_SECONDS   default 480
 """
 import asyncio
-import audioop
+import array
 import os
 import secrets
 import time
@@ -111,10 +111,36 @@ def home():
     return PAGE
 
 
+def _resample_24k_to_16k(pcm24):
+    src = array.array("h"); src.frombytes(pcm24[: len(pcm24) - len(pcm24) % 2])
+    n = len(src)
+    if n == 0:
+        return b""
+    n_out = int(n * 2 / 3)
+    out = array.array("h", bytes(2 * n_out))
+    for i in range(n_out):
+        pos = i * 1.5
+        j = int(pos)
+        f = pos - j
+        v = src[j] * (1 - f) + (src[j + 1] if j + 1 < n else src[j]) * f
+        out[i] = max(-32768, min(32767, int(v)))
+    return out.tobytes()
+
+
+def _mix(c, a):
+    ac = array.array("h"); ac.frombytes(c[: len(c) - len(c) % 2])
+    aa = array.array("h"); aa.frombytes(a[: len(a) - len(a) % 2])
+    n = max(len(ac), len(aa))
+    out = array.array("h", bytes(2 * n))
+    for i in range(n):
+        s = (ac[i] if i < len(ac) else 0) + (aa[i] if i < len(aa) else 0)
+        out[i] = max(-32768, min(32767, int(s * 0.6)))
+    return out.tobytes()
+
+
 class CallLog:
     def __init__(self, stamp):
         self.stamp = stamp
-        self.caller = audioop.ratecv(b"", 2, 1, 16000, 16000, None)  # passthrough init
         self.caller_chunks = []
         self.assistant_chunks = []
         self.lines = []
@@ -123,8 +149,7 @@ class CallLog:
         self.caller_chunks.append(pcm)
 
     def add_assistant(self, pcm24):
-        pcm16, _ = audioop.ratecv(pcm24, 2, 1, 24000, 16000, None)
-        self.assistant_chunks.append(pcm16)
+        self.assistant_chunks.append(_resample_24k_to_16k(pcm24))
 
     def save(self):
         c = b"".join(self.caller_chunks)
@@ -132,7 +157,7 @@ class CallLog:
         n = max(len(c), len(a))
         c = c + b"\x00" * (n - len(c))
         a = a + b"\x00" * (n - len(a))
-        mixed = audioop.tomono(audioop.add(c, a, 2), 2, 0.6, 0.6)
+        mixed = _mix(c, a)
         path = os.path.join(REC_DIR, f"call-{self.stamp}.wav")
         with wave.open(path, "wb") as w:
             w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000)
